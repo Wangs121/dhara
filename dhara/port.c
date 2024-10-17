@@ -2,7 +2,7 @@
  * @Author: wangs 277668922@qq.com
  * @Date: 2024-10-14 16:13:33
  * @LastEditors: wangs 277668922@qq.com
- * @LastEditTime: 2024-10-16 15:49:45
+ * @LastEditTime: 2024-10-17 09:50:34
  * @FilePath: \LoggerTest\Library\dhara\dhara\port.c
  * @Description:
  */
@@ -15,38 +15,17 @@
 // #define USE_LOG_DEBUG
 #include "ulog.h"
 
-#define LOG2_PAGE_SIZE       11
-#define LOG2_OOB_SIZE        6
-#define LOG2_PAGES_PER_BLOCK 6
-#define LOG2_BLOCK_SIZE      (LOG2_PAGE_SIZE + LOG2_PAGES_PER_BLOCK)
-#define NUM_BLOCKS           1024
 
-#define PAGE_SIZE            (1 << LOG2_PAGE_SIZE)
-#define PAGES_OOB_SIZE       (1 << LOG2_OOB_SIZE)
-#define PAGES_PER_BLOCK      (1 << LOG2_PAGES_PER_BLOCK)
-#define BLOCK_SIZE           (1 << LOG2_BLOCK_SIZE)
-#define MEM_SIZE             (NUM_BLOCKS * BLOCK_SIZE)
 
-const struct dhara_nand my_nand = {
-    .log2_page_size = LOG2_PAGE_SIZE,
-    .log2_ppb       = LOG2_PAGES_PER_BLOCK,
-    .num_blocks     = NUM_BLOCKS};
 
-// 坏块标记
-#define BAD_CLOCK_CONFIRM_TWICE 1 // 坏块检查两次
-#define BAD_BLOCK_OFFSET        0
-#define BLOCK_GOOD              0xff
-#define BLOCK_BAD               0xAA
-#define BLOCK_UNKNOW            0x00
-
-// 页使用标记
-#define PAGE_USED_OFFSET 1
-#define PAGE_FREE        0xff
-#define PAGE_USED        0x55
-
-uint8_t nandPageBuffer[PAGE_SIZE];
 static uint8_t goodBlcokMap[NUM_BLOCKS] = {BLOCK_UNKNOW};
 
+/**
+ * @description: 判断是否为坏块
+ * @param {dhara_nand} *n
+ * @param {dhara_block_t} b 块号
+ * @return {*} 0表示好块，1表示坏块
+ */
 int dhara_nand_is_bad(const struct dhara_nand *n, dhara_block_t b)
 {
     //     LOG_DEBUG("check bad block %d", b);
@@ -69,11 +48,15 @@ int dhara_nand_is_bad(const struct dhara_nand *n, dhara_block_t b)
     //         LOG_DEBUG("bad block %d", b);
     //     }
     //     return (goodBlcokMap[b] != BLOCK_GOOD);
-    // 0 means good block
-    // 1 means bad block
     return 0;
 }
 
+/**
+ * @description: 标记一个坏块
+ * @param {dhara_nand} *n
+ * @param {dhara_block_t} b 块号
+ * @return {*} 
+ */
 void dhara_nand_mark_bad(const struct dhara_nand *n, dhara_block_t b)
 {
     // LOG_DEBUG("set %d bad block", b);
@@ -86,6 +69,14 @@ void dhara_nand_mark_bad(const struct dhara_nand *n, dhara_block_t b)
     // NAND_WriteSpare(b * PAGES_PER_BLOCK, BAD_BLOCK_OFFSET, &buffer, 1);
 }
 
+
+/**
+ * @description:  块擦除
+ * @param {dhara_nand} *n 
+ * @param {dhara_block_t} b 块号
+ * @param {dhara_error_t} *err 错误代码
+ * @return {*} 0 擦除成功，-1 擦除失败
+ */
 int dhara_nand_erase(const struct dhara_nand *n, dhara_block_t b,
                      dhara_error_t *err)
 {
@@ -97,6 +88,14 @@ int dhara_nand_erase(const struct dhara_nand *n, dhara_block_t b,
     return -1;
 }
 
+/**
+ * @description: 页写入
+ * @param {dhara_nand} *n
+ * @param {dhara_page_t} p 页号
+ * @param {uint8_t} *data 写入的数据
+ * @param {dhara_error_t} *err 错误代码
+ * @return {*} 0 写入成功，-1 写入失败
+ */
 int dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
                     const uint8_t *data,
                     dhara_error_t *err)
@@ -114,6 +113,12 @@ int dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
     return -1;
 }
 
+/**
+ * @description: 页是否空闲
+ * @param {dhara_nand} *n 
+ * @param {dhara_page_t} p 页号
+ * @return {*} 1 空闲，0 不空闲
+ */
 int dhara_nand_is_free(const struct dhara_nand *n, dhara_page_t p)
 {
     uint8_t buffer = 0;
@@ -125,6 +130,16 @@ int dhara_nand_is_free(const struct dhara_nand *n, dhara_page_t p)
     return 0;
 }
 
+/**
+ * @description: 页读取
+ * @param {dhara_nand} *n
+ * @param {dhara_page_t} p 页号
+ * @param {size_t} offset 偏移量
+ * @param {size_t} length 长度
+ * @param {uint8_t} *data 数据缓存
+ * @param {dhara_error_t} *err 错误代码
+ * @return {*} 0 读取成功，-1 读取失败
+ */
 int dhara_nand_read(const struct dhara_nand *n, dhara_page_t p,
                     size_t offset, size_t length,
                     uint8_t *data,
@@ -141,6 +156,15 @@ int dhara_nand_read(const struct dhara_nand *n, dhara_page_t p,
     return -1;
 }
 
+
+/**
+ * @description: 页拷贝
+ * @param {dhara_nand} *n
+ * @param {dhara_page_t} src 源页号
+ * @param {dhara_page_t} dst 目标页号
+ * @param {dhara_error_t} *err 错误代码
+ * @return {*} 0 拷贝成功，否则拷贝失败
+ */
 int dhara_nand_copy(const struct dhara_nand *n,
                     dhara_page_t src, dhara_page_t dst,
                     dhara_error_t *err)
