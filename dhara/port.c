@@ -1,14 +1,19 @@
 /*
  * @Author: wangs 277668922@qq.com
  * @Date: 2024-10-14 16:13:33
- * @LastEditors: wangs 277668922@qq.com
- * @LastEditTime: 2024-10-22 08:59:12
- * @FilePath: \LoggerTest\Library\dhara\dhara\port.c
+ * @LastEditors: Shuai Wang 277668922@qq.com
+ * @LastEditTime: 2024-10-25 16:58:15
+ * @FilePath: \stm32f407zet6\Library\dhara\dhara\port.c
  * @Description:
  */
 #include "nandflash.h"
 #include "nand.h"
+#include "iwdg.h"
 
+#define FEED_WDG()                \
+    do {                          \
+        HAL_IWDG_Refresh(&hiwdg); \
+    } while (0)
 #define LOG_TAG "[DHARA]"
 #define USE_LOG_ERROR
 // #define USE_LOG_INFO
@@ -25,9 +30,12 @@ static uint8_t goodBlcokMap[NAND_NUM_BLOCKS] = {BLOCK_UNKNOW};
  */
 int dhara_nand_is_bad(const struct dhara_nand *n, dhara_block_t b)
 {
-    // LOG_DEBUG("check bad block %d", b);
-    if (goodBlcokMap[b] == BLOCK_UNKNOW) {
+    FEED_WDG();
+    LOG_DEBUG("check bad block %d", b);
+    if (goodBlcokMap[b] != BLOCK_GOOD || goodBlcokMap[b] != BLOCK_BAD) {
+        // LOG_DEBUG("NAND_IsBadBlock");
         goodBlcokMap[b] = NAND_IsBadBlock(b);
+        // LOG_DEBUG("NAND_IsBadBlock %d ", goodBlcokMap[b]);
     }
     // LOG_ERROR("goodBlcokMap %d %d",b,goodBlcokMap[b]);
     if (goodBlcokMap[b] != BLOCK_GOOD) {
@@ -44,6 +52,7 @@ int dhara_nand_is_bad(const struct dhara_nand *n, dhara_block_t b)
  */
 void dhara_nand_mark_bad(const struct dhara_nand *n, dhara_block_t b)
 {
+    FEED_WDG();
     LOG_ERROR("set %d bad block", b);
 
     NAND_MarkBadBlock(b);
@@ -60,19 +69,18 @@ void dhara_nand_mark_bad(const struct dhara_nand *n, dhara_block_t b)
 int dhara_nand_erase(const struct dhara_nand *n, dhara_block_t b,
                      dhara_error_t *err)
 {
+    FEED_WDG();
     switch (NAND_EraseBlock(b)) {
         case NAND_RESPONSE_OK:
+            LOG_DEBUG("erase block %d ok", b);
             return 0;
-            break;
         case NAND_RESPONSE_ERROR:
             *err = DHARA_E_BAD_BLOCK;
             LOG_ERROR("erase block error %d bad block", b);
             return -1;
-            break;
         case NAND_RESPONSE_ERROR_TIMEOUT:
-            return -1;
             LOG_ERROR("erase block error %d timeout", b);
-            break;
+            return -1;
     }
 }
 
@@ -89,19 +97,18 @@ int dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
                     dhara_error_t *err)
 {
 
+    FEED_WDG();
     switch (NAND_WritePage(p, 0, data, NAND_PAGE_SIZE)) {
         case NAND_RESPONSE_OK:
+            LOG_DEBUG("write page %d ok", p);
             return 0;
-            break;
         case NAND_RESPONSE_ERROR:
             *err = DHARA_E_BAD_BLOCK;
             LOG_ERROR("write page error %d bad block", p);
             return -1;
-            break;
         case NAND_RESPONSE_ERROR_TIMEOUT:
             LOG_ERROR("write page error %d timeout", p);
             return -1;
-            break;
     }
     // LOG_DEBUG("prog page %d", p);
     // if (NAND_WritePage(p, 0, data, NAND_PAGE_SIZE) == 0) {
@@ -124,7 +131,10 @@ int dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
  */
 int dhara_nand_is_free(const struct dhara_nand *n, dhara_page_t p)
 {
-    return CheckPageFree(p);
+    FEED_WDG();
+    uint8_t isfree = CheckPageFree(p);
+    LOG_DEBUG("check page free %d %d ", p, isfree);
+    return isfree;
     // uint8_t buffer = 0;
     // NAND_ReadSpare(p, PAGE_USED_OFFSET, &buffer, 1);
     // LOG_DEBUG("check page free %d %d ", p, buffer);
@@ -150,19 +160,19 @@ int dhara_nand_read(const struct dhara_nand *n, dhara_page_t p,
                     dhara_error_t *err)
 {
 
+    FEED_WDG();
     switch (NAND_ReadPage(p, offset, data, length)) {
         case NAND_RESPONSE_OK:
+            LOG_DEBUG("read %d %d %d ok", p, offset, length);
             return 0;
             break;
         case NAND_RESPONSE_ERROR_ECCERROR:
             *err = DHARA_E_ECC;
             LOG_ERROR("read error %d %d %d ecc error", p, offset, length);
             return -1;
-            break;
         case NAND_RESPONSE_ERROR_TIMEOUT:
             LOG_ERROR("read error %d %d %d timeout", p, offset, length);
             return -1;
-            break;
     }
     // LOG_DEBUG("read page %d %d %d", p, offset, length);
     // char ret = NAND_ReadPage(p, offset, data, length);
@@ -187,19 +197,18 @@ int dhara_nand_copy(const struct dhara_nand *n,
                     dhara_page_t src, dhara_page_t dst,
                     dhara_error_t *err)
 {
+    FEED_WDG();
     switch (NAND_CopyPageWithoutWrite(src, dst)) {
         case NAND_RESPONSE_OK:
+            LOG_DEBUG("copy %d %d  ok", src, dst);
             return 0;
-            break;
         case NAND_RESPONSE_ERROR:
             *err = DHARA_E_BAD_BLOCK;
             LOG_ERROR("copy error %d %d  bad block", src, dst);
             return -1;
-            break;
         case NAND_RESPONSE_ERROR_TIMEOUT:
             LOG_ERROR("copy error %d %d  timeout", src, dst);
             return -1;
-            break;
     }
 
     // LOG_DEBUG("page copy %d to %d", src, dst);
